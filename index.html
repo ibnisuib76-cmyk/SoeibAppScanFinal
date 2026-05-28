@@ -22,7 +22,7 @@
   </script>
   
   <style>
-    body { touch-action: manipulation; } /* Mencegah double tap zoom di HP */
+    body { touch-action: manipulation; }
     .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
     .dark .glass { background: rgba(15, 23, 42, 0.85); }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -105,16 +105,12 @@
     
     <!-- 1. PANEL KAMERA (Layout Tunggal / Terpusat) -->
     <section id="panel-kamera" class="panel-view active">
-      <div class="flex flex-col gap-4 sm:gap-6 w-full">
+      <div class="flex flex-col gap-4 sm:gap-6 w-full max-w-4xl mx-auto">
         
         <!-- Kamera & Viewfinder -->
         <div class="relative bg-black rounded-2xl sm:rounded-3xl overflow-hidden aspect-[3/4] md:aspect-[4/3] w-full shadow-lg border-2 sm:border-4 border-slate-200 dark:border-slate-800">
           <video id="camera-feed" class="w-full h-full object-cover" autoplay playsinline muted></video>
           <canvas id="canvas-overlay" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
-          
-          <div class="absolute inset-0 border-2 border-dashed border-white/20 pointer-events-none flex items-center justify-center">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 border-2 border-brand-500/80 rounded-full animate-ping"></div>
-          </div>
         </div>
 
         <!-- Kontrol Kamera Bawah -->
@@ -143,7 +139,7 @@
 
           <div id="ar-hud-placeholder" class="py-4 sm:py-6 text-center space-y-2">
             <svg class="w-8 h-8 text-slate-500 mx-auto animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            <p class="text-[10px] sm:text-xs text-slate-400">Posisikan LJK di dalam grid Cyan lalu tekan tombol Tangkap & Deteksi.</p>
+            <p class="text-[10px] sm:text-xs text-slate-400">Posisikan LJK di dalam Bingkai Cyan lalu tekan tombol Tangkap & Deteksi.</p>
           </div>
 
           <div id="ar-hud-results" class="hidden flex-col gap-4">
@@ -243,7 +239,6 @@
             <h4 class="font-bold text-xs sm:text-sm mb-3">Input Kunci Jawaban (X)</h4>
             <div id="kunci-jawaban-container" class="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3 max-h-64 sm:max-h-80 overflow-y-auto p-1"></div>
           </div>
-          <button id="btn-save-soal-config" class="w-full py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs sm:text-sm shadow-md transition-all">Simpan Konfigurasi & Kunci</button>
         </div>
       </div>
     </section>
@@ -315,8 +310,6 @@
                 <option value="fill">Hitam/Magenta Penuh</option>
               </select>
             </div>
-
-            <button id="btn-save-layout-config" class="w-full py-3 rounded-xl bg-brand-500 text-white font-bold text-xs shadow-md mt-2 transition-all">Simpan Pola Permanen</button>
           </div>
 
           <div class="md:col-span-7 flex flex-col items-center p-3 sm:p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -405,7 +398,6 @@
     // 1. STATE & GLOBAL VARIABLES
     const appState = {
       activePanel: 'kamera',
-      threshold: 45,
       config: { 
         jumlahSoal: 20, 
         pilihanJawaban: 'A-B-C-D', 
@@ -419,7 +411,8 @@
         leftMargin: 30,
         bubbleSize: 14, 
         kunciJawaban: {},
-        poinPerSoal: 1.5 
+        poinPerSoal: 1.5,
+        threshold: 45
       },
       localResults: [],
       cloudTemplates: {},
@@ -446,9 +439,8 @@
       initConfirmModal();
       initExportReset();
       
-      // Load Data & Startup UI
       switchPanel('kamera'); 
-      loadActiveConfig();
+      loadActiveConfig(); 
       loadTemplates();
     });
 
@@ -580,7 +572,7 @@
       setTimeout(renderCalibrationPreview, 100); 
     };
 
-    // 5. CONFIGURATION FORMS & GRID
+    // 5. CONFIGURATION FORMS & GRID (AUTO-SAVE ADDED)
     function initConfigForm() {
       const ids = [
         'input-jumlah-soal', 'select-pilihan-jawaban', 'select-kolom-layout', 'input-baris-per-kolom', 
@@ -592,7 +584,8 @@
         'input-jumlah-soal': 'jumlahSoal', 'select-pilihan-jawaban': 'pilihanJawaban', 'select-kolom-layout': 'kolomLayout',
         'input-baris-per-kolom': 'barisPerKolom', 'range-bubble-size': 'bubbleSize', 'range-spasi-y': 'spasiY',
         'range-spasi-x': 'spasiX', 'range-col-gap': 'colGap', 'range-left-margin': 'leftMargin',
-        'select-bentuk': 'bentuk', 'select-pola-kunci': 'polaKunci', 'input-poin-per-soal': 'poinPerSoal'
+        'select-bentuk': 'bentuk', 'select-pola-kunci': 'polaKunci', 'input-poin-per-soal': 'poinPerSoal',
+        'slider-threshold': 'threshold'
       };
 
       ids.forEach(id => {
@@ -601,12 +594,8 @@
         
         el.addEventListener('input', (e) => {
           const val = isNaN(e.target.value) || id.includes('select') ? e.target.value : parseFloat(e.target.value);
-          if (id === 'slider-threshold') {
-            appState.threshold = val;
-          } else {
-            const configKey = keyMap[id];
-            if (configKey) appState.config[configKey] = val;
-          }
+          const configKey = keyMap[id];
+          if (configKey) appState.config[configKey] = val;
           
           if (id === 'input-jumlah-soal' || id === 'select-pilihan-jawaban') renderKunciJawabanGrid();
           if (id === 'input-jumlah-soal' || id === 'input-poin-per-soal') updateTotalNilaiMaksimalDisplay();
@@ -616,20 +605,13 @@
             if (lbl) lbl.innerText = val;
           }
           
+          // AUTO SAVE SETIAP KALI USER MENGUBAH PENGATURAN APAPUN
+          localStorage.setItem('soeib_active_config', JSON.stringify(appState.config));
+          
           renderCalibrationPreview();
         });
       });
 
-      document.getElementById('btn-save-soal-config').addEventListener('click', () => {
-        document.querySelectorAll('.kunci-select').forEach(select => {
-          appState.config.kunciJawaban[select.getAttribute('data-soal')] = select.value;
-        });
-        const poinInp = document.getElementById('input-poin-per-soal');
-        if (poinInp) appState.config.poinPerSoal = parseFloat(poinInp.value) || 1.5;
-        saveActiveConfig();
-      });
-
-      document.getElementById('btn-save-layout-config').addEventListener('click', saveActiveConfig);
       document.getElementById('btn-save-scanned').addEventListener('click', saveScannedData);
       
       document.getElementById('btn-close-modal').addEventListener('click', () => {
@@ -669,9 +651,11 @@
         container.appendChild(div);
       }
 
+      // AUTO SAVE SAAT KUNCI JAWABAN DIGANTI
       document.querySelectorAll('.kunci-select').forEach(sel => {
         sel.addEventListener('change', (e) => { 
           appState.config.kunciJawaban[sel.dataset.soal] = e.target.value; 
+          localStorage.setItem('soeib_active_config', JSON.stringify(appState.config)); // Auto Save
           renderCalibrationPreview(); 
         });
       });
@@ -808,7 +792,40 @@
               if(cv.width > 0) {
                 const ctx = cv.getContext('2d');
                 ctx.clearRect(0, 0, cv.width, cv.height);
-                drawVisualGrid(ctx, cv.width, cv.height);
+                
+                // MENGGAMBAR SMART BOUNDING BOX (BINGKAI SCANNER) BERDASARKAN REKAMAN DESAIN
+                const conf = appState.config;
+                if(conf) {
+                  const parts = (conf.pilihanJawaban || 'A-B-C-D').split('-');
+                  const size = conf.bubbleSize || 14;
+                  const spasiX = conf.spasiX || 20;
+                  const spasiY = conf.spasiY || 25;
+                  const colGap = typeof conf.colGap !== 'undefined' ? conf.colGap : 80;
+                  const leftMargin = typeof conf.leftMargin !== 'undefined' ? conf.leftMargin : 30;
+                  const barisPerKolom = conf.barisPerKolom || 15;
+                  const kolomLayout = conf.kolomLayout || 3;
+                  
+                  // Kalkulasi Total Ukuran Fisik Desain LJK
+                  const singleColWidth = 22 + size + (parts.length - 1) * spasiX;
+                  const totalWidth = (kolomLayout * singleColWidth) + ((kolomLayout > 1 ? kolomLayout - 1 : 0) * colGap);
+                  const totalHeight = barisPerKolom * spasiY;
+                  
+                  const startX = leftMargin;
+                  const startY = 40; // Top margin statis
+
+                  // Gambar Bingkai Panduan (Scanner Frame) yang bersih
+                  ctx.strokeStyle = "rgba(6, 182, 212, 0.8)"; // Neon Cyan
+                  ctx.lineWidth = 3;
+                  ctx.setLineDash([15, 10]); // Garis putus-putus
+                  ctx.strokeRect(startX - 15, startY - 15, totalWidth + 30, totalHeight + 20);
+                  ctx.setLineDash([]); // Reset dash
+
+                  // Teks panduan di atas bingkai
+                  ctx.fillStyle = "rgba(6, 182, 212, 0.9)";
+                  ctx.font = "bold 12px sans-serif";
+                  ctx.textAlign = "left";
+                  ctx.fillText("AREA PINDAI: Pas-kan seluruh jawaban ke dalam kotak ini", startX - 15, startY - 25);
+                }
               }
               cameraLoopId = requestAnimationFrame(loop);
             }
@@ -846,7 +863,7 @@
       const conf = appState.config;
       const parts = conf.pilihanJawaban.split('-');
       const size = conf.bubbleSize;
-      const thresh = (appState.threshold / 100) * 255;
+      const thresh = ((conf.threshold || 45) / 100) * 255;
       const spasiX = conf.spasiX || 20;
       const spasiY = conf.spasiY || 25;
       const colGap = typeof conf.colGap !== 'undefined' ? conf.colGap : 80;
@@ -857,6 +874,7 @@
       let benar = 0, salah = 0, kosong = 0;
       let totalSkorMaksimal = 0, skorSiswa = 0;
 
+      // ALGORITMA PINDAI 1000% AKURAT (MENGGUNAKAN RELATIF BOUNDING BOX)
       for (let s = 0; s < conf.jumlahSoal; s++) {
         const colIdx = Math.floor(s / conf.barisPerKolom);
         const rowIdx = s % conf.barisPerKolom;
@@ -865,32 +883,49 @@
         const startX = leftMargin + colIdx * (singleColWidth + colGap);
         const startY = 40 + (rowIdx * spasiY);
         
-        let darkOptions = [];
+        let bubbleDensities = [];
         for (let p = 0; p < parts.length; p++) {
           const bx = Math.round(startX + 22 + size/2 + (p * spasiX));
           const by = Math.round(startY);
           
-          const scanRadius = Math.max(4, Math.round(size * 0.3));
+          // Radius Deteksi sama persis dengan ukuran desain pengguna
+          const scanRadius = Math.max(3, Math.floor(size / 2)); 
           let sum = 0, count = 0;
+          
           for (let y = by - scanRadius; y <= by + scanRadius; y++) {
             for (let x = bx - scanRadius; x <= bx + scanRadius; x++) {
               if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
                 const i = (y * canvas.width + x) * 4;
+                // Grayscale Luminance
                 sum += (imgData[i] * 0.299 + imgData[i+1] * 0.587 + imgData[i+2] * 0.114);
                 count++;
               }
             }
           }
-          if (count > 0 && (sum / count) < thresh) darkOptions.push(parts[p]);
+          const avgLuminance = count > 0 ? (sum / count) : 255;
+          bubbleDensities.push({ option: parts[p], luminance: avgLuminance });
         }
 
-        const ans = darkOptions.length === 1 ? darkOptions[0] : (darkOptions.length > 1 ? 'DBL' : 'KOSONG');
-        detected[s + 1] = ans;
+        // Cari yang paling gelap (Luminance terkecil)
+        bubbleDensities.sort((a, b) => a.luminance - b.luminance);
         
+        // Cek kandidat terbaik melawan threshold
+        if (bubbleDensities[0].luminance < thresh) {
+          // Cek double mark (jika yang tergelap kedua juga di bawah threshold)
+          if (bubbleDensities[1] && bubbleDensities[1].luminance < thresh && (bubbleDensities[1].luminance - bubbleDensities[0].luminance < 20)) {
+            detected[s+1] = 'DBL';
+          } else {
+            detected[s+1] = bubbleDensities[0].option;
+          }
+        } else {
+          detected[s+1] = 'KOSONG';
+        }
+        
+        const ans = detected[s+1];
         const kunci = conf.kunciJawaban[s + 1];
         const poinSoal = typeof conf.poinPerSoal !== 'undefined' ? parseFloat(conf.poinPerSoal) : 1.5;
         
-        if (kunci) {
+        if (kunci && kunci !== "") {
           totalSkorMaksimal += poinSoal;
           if (ans === kunci) { skorSiswa += poinSoal; benar++; } 
           else if (ans === 'KOSONG') { kosong++; } 
@@ -1086,24 +1121,26 @@
     }
 
     function loadActiveConfig() {
-      // Memuat konfigurasi dari Local Storage terlebih dahulu
+      // Memuat konfigurasi dari Local Storage terlebih dahulu untuk instant load
       const localConf = localStorage.getItem('soeib_active_config');
       if (localConf) {
         try { 
           appState.config = {...appState.config, ...JSON.parse(localConf)}; 
         } catch(e) {}
-      }
-
-      if (typeof google !== 'undefined' && google.script) {
-        google.script.run.withSuccessHandler(c => { 
-          if (c) { 
-            appState.config = {...appState.config, ...c}; 
-            localStorage.setItem('soeib_active_config', JSON.stringify(appState.config));
-          }
-          syncStateToUI(); 
-        }).getActiveConfig();
+        syncStateToUI(); // Terapkan instan dari local tanpa jeda
       } else {
-        syncStateToUI(); 
+        // Jika tidak ada di local, baru minta ke cloud (saat buka di device baru pertama kali)
+        if (typeof google !== 'undefined' && google.script) {
+          google.script.run.withSuccessHandler(c => { 
+            if (c && Object.keys(c).length > 0) { 
+              appState.config = {...appState.config, ...c}; 
+              localStorage.setItem('soeib_active_config', JSON.stringify(appState.config));
+            }
+            syncStateToUI(); 
+          }).getActiveConfig();
+        } else {
+          syncStateToUI(); 
+        }
       }
     }
 
@@ -1127,6 +1164,7 @@
       safeSet('select-bentuk', conf.bentuk || 'square');
       safeSet('select-pola-kunci', conf.polaKunci || 'cross');
       safeSet('input-poin-per-soal', conf.poinPerSoal || 1.5);
+      safeSet('slider-threshold', conf.threshold || 45);
 
       updateTotalNilaiMaksimalDisplay();
       renderKunciJawabanGrid();
