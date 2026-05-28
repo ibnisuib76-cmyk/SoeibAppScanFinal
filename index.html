@@ -109,8 +109,13 @@
         
         <!-- Kamera & Viewfinder -->
         <div class="relative bg-black rounded-2xl sm:rounded-3xl overflow-hidden aspect-[3/4] md:aspect-[4/3] w-full shadow-lg border-2 sm:border-4 border-slate-200 dark:border-slate-800">
-          <video id="camera-feed" class="w-full h-full object-cover" autoplay playsinline muted></video>
-          <canvas id="canvas-overlay" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+          <!-- DIUBAH KE OBJECT-CONTAIN AGAR TIDAK ADA PIKSEL TERPOTONG & KOORDINAT 100% AKURAT -->
+          <video id="camera-feed" class="absolute inset-0 w-full h-full object-contain" autoplay playsinline muted></video>
+          <canvas id="canvas-overlay" class="absolute inset-0 w-full h-full object-contain pointer-events-none"></canvas>
+          
+          <div class="absolute inset-0 border-2 border-dashed border-white/20 pointer-events-none flex items-center justify-center">
+            <div class="w-16 h-16 sm:w-20 sm:h-20 border-2 border-brand-500/80 rounded-full animate-ping"></div>
+          </div>
         </div>
 
         <!-- Kontrol Kamera Bawah -->
@@ -137,11 +142,13 @@
             <span id="ar-hud-status" class="text-[9px] text-slate-400 font-bold">READY</span>
           </div>
 
+          <!-- Placeholder sebelum user melalukan scan -->
           <div id="ar-hud-placeholder" class="py-4 sm:py-6 text-center space-y-2">
             <svg class="w-8 h-8 text-slate-500 mx-auto animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            <p class="text-[10px] sm:text-xs text-slate-400">Posisikan LJK di dalam Bingkai Cyan lalu tekan tombol Tangkap & Deteksi.</p>
+            <p class="text-[10px] sm:text-xs text-slate-400">Posisikan LJK di dalam Bingkai Merah lalu tekan tombol Tangkap & Deteksi.</p>
           </div>
 
+          <!-- Hasil setelah LJK di-scan -->
           <div id="ar-hud-results" class="hidden flex-col gap-4">
             <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 justify-between">
               <div class="text-center sm:text-left space-y-1">
@@ -313,7 +320,7 @@
           </div>
 
           <div class="md:col-span-7 flex flex-col items-center p-3 sm:p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
-            <span class="text-[9px] font-bold text-slate-400 uppercase mb-2 text-center">Peta Kordinat (Cyan = Kotak, Magenta = Kunci)</span>
+            <span class="text-[9px] font-bold text-slate-400 uppercase mb-2 text-center">Peta Kordinat Pembangunan LJK</span>
             <div class="relative w-full aspect-[4/3] bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
               <canvas id="canvas-calibration-preview" class="w-full h-full"></canvas>
             </div>
@@ -813,16 +820,16 @@
                   const startX = leftMargin;
                   const startY = 40; // Top margin statis
 
-                  // Gambar Bingkai Panduan (Scanner Frame) yang bersih
-                  ctx.strokeStyle = "rgba(6, 182, 212, 0.8)"; // Neon Cyan
+                  // Gambar Bingkai Panduan (Scanner Frame) Merah
+                  ctx.strokeStyle = "rgba(239, 68, 68, 0.9)"; // Merah
                   ctx.lineWidth = 3;
                   ctx.setLineDash([15, 10]); // Garis putus-putus
                   ctx.strokeRect(startX - 15, startY - 15, totalWidth + 30, totalHeight + 20);
                   ctx.setLineDash([]); // Reset dash
 
                   // Teks panduan di atas bingkai
-                  ctx.fillStyle = "rgba(6, 182, 212, 0.9)";
-                  ctx.font = "bold 12px sans-serif";
+                  ctx.fillStyle = "rgba(239, 68, 68, 0.9)"; // Merah
+                  ctx.font = "bold 14px sans-serif";
                   ctx.textAlign = "left";
                   ctx.fillText("AREA PINDAI: Pas-kan seluruh jawaban ke dalam kotak ini", startX - 15, startY - 25);
                 }
@@ -863,7 +870,7 @@
       const conf = appState.config;
       const parts = conf.pilihanJawaban.split('-');
       const size = conf.bubbleSize;
-      const thresh = ((conf.threshold || 45) / 100) * 255;
+      const thresh = (appState.threshold / 100) * 255;
       const spasiX = conf.spasiX || 20;
       const spasiY = conf.spasiY || 25;
       const colGap = typeof conf.colGap !== 'undefined' ? conf.colGap : 80;
