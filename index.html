@@ -22,7 +22,7 @@
   </script>
   
   <style>
-    body { touch-action: manipulation; }
+    body { touch-action: manipulation; } /* Mencegah double tap zoom di HP */
     .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
     .dark .glass { background: rgba(15, 23, 42, 0.85); }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -109,13 +109,8 @@
         
         <!-- Kamera & Viewfinder -->
         <div class="relative bg-black rounded-2xl sm:rounded-3xl overflow-hidden aspect-[3/4] md:aspect-[4/3] w-full shadow-lg border-2 sm:border-4 border-slate-200 dark:border-slate-800">
-          <!-- DIUBAH KE OBJECT-CONTAIN AGAR TIDAK ADA PIKSEL TERPOTONG & KOORDINAT 100% AKURAT -->
           <video id="camera-feed" class="absolute inset-0 w-full h-full object-contain" autoplay playsinline muted></video>
           <canvas id="canvas-overlay" class="absolute inset-0 w-full h-full object-contain pointer-events-none"></canvas>
-          
-          <div class="absolute inset-0 border-2 border-dashed border-white/20 pointer-events-none flex items-center justify-center">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 border-2 border-brand-500/80 rounded-full animate-ping"></div>
-          </div>
         </div>
 
         <!-- Kontrol Kamera Bawah -->
@@ -612,7 +607,7 @@
             if (lbl) lbl.innerText = val;
           }
           
-          // AUTO SAVE SETIAP KALI USER MENGUBAH PENGATURAN APAPUN
+          // AUTO SAVE
           localStorage.setItem('soeib_active_config', JSON.stringify(appState.config));
           
           renderCalibrationPreview();
@@ -658,7 +653,6 @@
         container.appendChild(div);
       }
 
-      // AUTO SAVE SAAT KUNCI JAWABAN DIGANTI
       document.querySelectorAll('.kunci-select').forEach(sel => {
         sel.addEventListener('change', (e) => { 
           appState.config.kunciJawaban[sel.dataset.soal] = e.target.value; 
@@ -784,7 +778,6 @@
         streamRef = await navigator.mediaDevices.getUserMedia(constraints);
         vid.srcObject = streamRef;
         vid.onloadedmetadata = () => {
-          // Sync overlay size with actual video dimension
           const syncSize = () => {
             if(vid.videoWidth > 0 && cv.width !== vid.videoWidth) {
               cv.width = vid.videoWidth;
@@ -800,7 +793,7 @@
                 const ctx = cv.getContext('2d');
                 ctx.clearRect(0, 0, cv.width, cv.height);
                 
-                // MENGGAMBAR SMART BOUNDING BOX (BINGKAI SCANNER) BERDASARKAN REKAMAN DESAIN
+                // MENGGAMBAR SMART BOUNDING BOX (BINGKAI SCANNER)
                 const conf = appState.config;
                 if(conf) {
                   const parts = (conf.pilihanJawaban || 'A-B-C-D').split('-');
@@ -812,23 +805,20 @@
                   const barisPerKolom = conf.barisPerKolom || 15;
                   const kolomLayout = conf.kolomLayout || 3;
                   
-                  // Kalkulasi Total Ukuran Fisik Desain LJK
                   const singleColWidth = 22 + size + (parts.length - 1) * spasiX;
                   const totalWidth = (kolomLayout * singleColWidth) + ((kolomLayout > 1 ? kolomLayout - 1 : 0) * colGap);
                   const totalHeight = barisPerKolom * spasiY;
                   
                   const startX = leftMargin;
-                  const startY = 40; // Top margin statis
+                  const startY = 40; 
 
-                  // Gambar Bingkai Panduan (Scanner Frame) Merah
                   ctx.strokeStyle = "rgba(239, 68, 68, 0.9)"; // Merah
                   ctx.lineWidth = 3;
-                  ctx.setLineDash([15, 10]); // Garis putus-putus
+                  ctx.setLineDash([15, 10]);
                   ctx.strokeRect(startX - 15, startY - 15, totalWidth + 30, totalHeight + 20);
-                  ctx.setLineDash([]); // Reset dash
+                  ctx.setLineDash([]);
 
-                  // Teks panduan di atas bingkai
-                  ctx.fillStyle = "rgba(239, 68, 68, 0.9)"; // Merah
+                  ctx.fillStyle = "rgba(239, 68, 68, 0.9)";
                   ctx.font = "bold 14px sans-serif";
                   ctx.textAlign = "left";
                   ctx.fillText("AREA PINDAI: Pas-kan seluruh jawaban ke dalam kotak ini", startX - 15, startY - 25);
@@ -870,7 +860,11 @@
       const conf = appState.config;
       const parts = conf.pilihanJawaban.split('-');
       const size = conf.bubbleSize;
-      const thresh = (appState.threshold / 100) * 255;
+      
+      // ALGORITMA DENSITY ENGINE (Kepadatan Piksel)
+      const userSensitivity = conf.threshold || 45; 
+      const absolutePixelThreshold = 200 - (userSensitivity * 1.2); 
+
       const spasiX = conf.spasiX || 20;
       const spasiY = conf.spasiY || 25;
       const colGap = typeof conf.colGap !== 'undefined' ? conf.colGap : 80;
@@ -881,7 +875,6 @@
       let benar = 0, salah = 0, kosong = 0;
       let totalSkorMaksimal = 0, skorSiswa = 0;
 
-      // ALGORITMA PINDAI 1000% AKURAT (MENGGUNAKAN RELATIF BOUNDING BOX)
       for (let s = 0; s < conf.jumlahSoal; s++) {
         const colIdx = Math.floor(s / conf.barisPerKolom);
         const rowIdx = s % conf.barisPerKolom;
@@ -890,44 +883,63 @@
         const startX = leftMargin + colIdx * (singleColWidth + colGap);
         const startY = 40 + (rowIdx * spasiY);
         
-        let bubbleDensities = [];
+        let scores = []; 
+
         for (let p = 0; p < parts.length; p++) {
           const bx = Math.round(startX + 22 + size/2 + (p * spasiX));
           const by = Math.round(startY);
           
-          // Radius Deteksi sama persis dengan ukuran desain pengguna
-          const scanRadius = Math.max(3, Math.floor(size / 2)); 
-          let sum = 0, count = 0;
+          const scanRadius = Math.max(4, Math.round(size * 0.35));
           
+          let darkPixelsCount = 0;
+          let totalPixels = 0;
+          let localMinLuminance = 255;
+
           for (let y = by - scanRadius; y <= by + scanRadius; y++) {
             for (let x = bx - scanRadius; x <= bx + scanRadius; x++) {
               if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
                 const i = (y * canvas.width + x) * 4;
-                // Grayscale Luminance
-                sum += (imgData[i] * 0.299 + imgData[i+1] * 0.587 + imgData[i+2] * 0.114);
-                count++;
+                const r = imgData[i];
+                const g = imgData[i+1];
+                const b = imgData[i+2];
+                
+                const luminance = (r * 0.299 + g * 0.587 + b * 0.114);
+                
+                if (luminance < localMinLuminance) {
+                  localMinLuminance = luminance;
+                }
+
+                if (luminance < absolutePixelThreshold) {
+                   darkPixelsCount++;
+                }
+                totalPixels++;
               }
             }
           }
-          const avgLuminance = count > 0 ? (sum / count) : 255;
-          bubbleDensities.push({ option: parts[p], luminance: avgLuminance });
+
+          const densityScore = totalPixels > 0 ? (darkPixelsCount / totalPixels) * 100 : 0;
+          
+          scores.push({
+            option: parts[p],
+            density: densityScore,
+            darkestPoint: localMinLuminance
+          });
         }
 
-        // Cari yang paling gelap (Luminance terkecil)
-        bubbleDensities.sort((a, b) => a.luminance - b.luminance);
-        
-        // Cek kandidat terbaik melawan threshold
-        if (bubbleDensities[0].luminance < thresh) {
-          // Cek double mark (jika yang tergelap kedua juga di bawah threshold)
-          if (bubbleDensities[1] && bubbleDensities[1].luminance < thresh && (bubbleDensities[1].luminance - bubbleDensities[0].luminance < 20)) {
-            detected[s+1] = 'DBL';
-          } else {
-            detected[s+1] = bubbleDensities[0].option;
-          }
+        scores.sort((a, b) => b.density - a.density);
+
+        const minDensityToQualify = 3.0; 
+
+        if (scores[0].density >= minDensityToQualify) {
+           if (scores[1] && scores[1].density >= minDensityToQualify && scores[1].density > (scores[0].density * 0.6)) {
+              detected[s+1] = 'DBL';
+           } else {
+              detected[s+1] = scores[0].option;
+           }
         } else {
-          detected[s+1] = 'KOSONG';
+           detected[s+1] = 'KOSONG';
         }
-        
+
         const ans = detected[s+1];
         const kunci = conf.kunciJawaban[s + 1];
         const poinSoal = typeof conf.poinPerSoal !== 'undefined' ? parseFloat(conf.poinPerSoal) : 1.5;
@@ -953,7 +965,6 @@
         akurasi: rawScore, waktu: new Date().toLocaleTimeString()
       };
 
-      // Tampilkan data hasil scan real-time di Panel Hasil Bawah
       const arPlaceholder = document.getElementById('ar-hud-placeholder');
       const arResults = document.getElementById('ar-hud-results');
       const arStatus = document.getElementById('ar-hud-status');
@@ -998,10 +1009,7 @@
       }
       
       appState.localResults.unshift(appState.currentScan);
-      
-      // Save history to localStorage
       localStorage.setItem('soeib_scan_history', JSON.stringify(appState.localResults));
-      
       showToast("Data scan berhasil disimpan ke riwayat.");
       
       if(nameInput) nameInput.value = "";
@@ -1013,7 +1021,7 @@
       container.innerHTML = '';
 
       if (appState.localResults.length === 0) {
-        container.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-slate-400">Belum ada riwayat hasil pemindaian.</td></tr>`;
+        container.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-slate-400">Belum ada riwayat hasil pemindaian disimpan.</td></tr>`;
         return;
       }
 
@@ -1100,10 +1108,7 @@
     window.deleteLocalResult = function(id) {
       showCustomConfirm("Hapus Data", "Hapus riwayat pemindaian ini?", () => {
         appState.localResults = appState.localResults.filter(item => item.id !== id);
-        
-        // Update history to localStorage
         localStorage.setItem('soeib_scan_history', JSON.stringify(appState.localResults));
-        
         showToast("Data scan berhasil dihapus.");
         renderDataRows();
       });
@@ -1112,8 +1117,6 @@
     // 9. CLOUD / GOOGLE APPS SCRIPT INTEGRATION
     function saveActiveConfig() {
       showLoading("Menyimpan Konfigurasi...");
-      
-      // Simpan konfigurasi ke Local Storage agar tersimpan permanen di device user
       localStorage.setItem('soeib_active_config', JSON.stringify(appState.config));
 
       if (typeof google !== 'undefined' && google.script) {
@@ -1128,15 +1131,13 @@
     }
 
     function loadActiveConfig() {
-      // Memuat konfigurasi dari Local Storage terlebih dahulu untuk instant load
       const localConf = localStorage.getItem('soeib_active_config');
       if (localConf) {
         try { 
           appState.config = {...appState.config, ...JSON.parse(localConf)}; 
         } catch(e) {}
-        syncStateToUI(); // Terapkan instan dari local tanpa jeda
+        syncStateToUI(); 
       } else {
-        // Jika tidak ada di local, baru minta ke cloud (saat buka di device baru pertama kali)
         if (typeof google !== 'undefined' && google.script) {
           google.script.run.withSuccessHandler(c => { 
             if (c && Object.keys(c).length > 0) { 
@@ -1179,12 +1180,10 @@
     }
 
     function loadTemplates() {
-      // Memuat template dari Local Storage
       const localTpls = localStorage.getItem('soeib_templates');
       if (localTpls) {
         try { appState.cloudTemplates = JSON.parse(localTpls); } catch(e){}
       } else {
-        // Fallback default if empty
         appState.cloudTemplates = {
           "Default UAS 20 Soal": { jumlahSoal: 20, pilihanJawaban: "A-B-C-D", kolomLayout: 3, barisPerKolom: 15, poinPerSoal: 1.5 },
           "Kuis Kimia 10 Pilihan": { jumlahSoal: 10, pilihanJawaban: "A-B-C-D", kolomLayout: 1, barisPerKolom: 10, poinPerSoal: 5 }
@@ -1238,7 +1237,7 @@
       appState.config = {...appState.config, ...appState.cloudTemplates[name]};
       appState.activeTemplateName = name;
       syncStateToUI();
-      saveActiveConfig(); // Otomatis simpan permanen saat diterapkan
+      saveActiveConfig(); 
       showToast("Template diterapkan: " + name);
     };
 
@@ -1249,7 +1248,6 @@
 
       showLoading("Menyimpan template...");
       
-      // Simpan template secara lokal
       appState.cloudTemplates[name] = {...appState.config};
       localStorage.setItem('soeib_templates', JSON.stringify(appState.cloudTemplates));
 
